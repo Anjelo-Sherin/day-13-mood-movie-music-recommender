@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  recommender-service:
+    build: .
+    container_name: aura-match-recommender
+    ports:
+      - "8013:8013"
+    environment:
+      - PORT=8013
+      - HOST=0.0.0.0
+      - DEBUG=False
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
