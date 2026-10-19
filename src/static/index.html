@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuraMatch — Mood-Based Movie & Music Recommender</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-heading { font-family: 'Space Grotesk', sans-serif; }
+    .glass {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .gradient-glow {
+      background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.25) 0%, rgba(15, 23, 42, 0) 70%);
+    }
+    .slider-thumb::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #8b5cf6;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen gradient-glow selection:bg-purple-500 selection:text-white">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800/80 sticky top-0 z-50 glass">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+          <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <span class="font-heading font-bold text-xl tracking-tight bg-gradient-to-r from-violet-400 via-pink-300 to-amber-200 bg-clip-text text-transparent">AuraMatch</span>
+          <span class="ml-2 text-xs text-slate-400 border border-slate-700 rounded-full px-2 py-0.5">Day 13</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button onclick="openMetricsModal()" class="flex items-center space-x-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition shadow">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-violet-400"></i>
+          <span>Metrics & NDCG</span>
+        </button>
+        <button onclick="openInterviewModal()" class="flex items-center space-x-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-violet-300 transition">
+          <i data-lucide="book-open" class="w-4 h-4"></i>
+          <span>Talking Points</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    
+    <!-- Hero / Mood Input Box -->
+    <section class="glass rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+      <div class="absolute -right-24 -top-24 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-24 -bottom-24 w-80 h-80 bg-pink-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="max-w-3xl">
+        <h1 class="text-3xl sm:text-4xl font-extrabold font-heading text-white tracking-tight">
+          Tell it how you feel in a sentence.
+        </h1>
+        <p class="mt-2 text-slate-400 text-sm sm:text-base">
+          Our hybrid engine decodes your affective state (Valence & Energy), blends collaborative matrix factorization, and suggests movies and songs with transparent rationales.
+        </p>
+      </div>
+
+      <!-- Presets Pills -->
+      <div class="mt-5">
+        <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-2">Try a canonical mood:</div>
+        <div id="presets-container" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Main Input Bar -->
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-1">
+          <i data-lucide="message-square" class="absolute left-4 top-3.5 w-5 h-5 text-slate-400"></i>
+          <input 
+            type="text" 
+            id="mood-input" 
+            placeholder="e.g. exhausted after a long week but want something uplifting"
+            value="exhausted after a long week but want something uplifting"
+            class="w-full pl-12 pr-4 py-3 bg-slate-900/90 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm sm:text-base shadow-inner"
+            onkeydown="if(event.key === 'Enter') handleRecommend()"
+          />
+        </div>
+        <button 
+          id="btn-recommend"
+          onclick="handleRecommend()" 
+          class="flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white font-semibold rounded-xl shadow-lg shadow-violet-600/30 transition transform active:scale-95 text-sm sm:text-base">
+          <i data-lucide="wand-2" class="w-5 h-5"></i>
+          <span>Recommend</span>
+        </button>
+      </div>
+
+      <!-- Interactive 2D Circumplex Visualizer & Sliders Accordion -->
+      <div class="mt-6 pt-6 border-t border-slate-800/80 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- 2D Valence-Arousal Canvas -->
+        <div class="lg:col-span-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col items-center">
+          <div class="flex items-center justify-between w-full mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
+              <i data-lucide="compass" class="w-4 h-4 text-violet-400"></i>
+              <span>Affective Plane (Russell's Model)</span>
+            </span>
+            <span id="canvas-label" class="text-xs font-mono text-violet-300">V: 0.88 | E: 0.75</span>
+          </div>
+          <div class="relative w-full max-w-[260px] aspect-square bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden cursor-crosshair shadow-inner" id="affective-box">
+            <!-- Quadrant Labels -->
+            <span class="absolute top-2 left-2 text-[10px] text-red-400/80 font-medium">Tense / Anger</span>
+            <span class="absolute top-2 right-2 text-[10px] text-amber-300/80 font-medium">Joy / Hype</span>
+            <span class="absolute bottom-2 left-2 text-[10px] text-blue-400/80 font-medium">Melancholy</span>
+            <span class="absolute bottom-2 right-2 text-[10px] text-emerald-400/80 font-medium">Calm / Peace</span>
+            <!-- Axis lines -->
+            <div class="absolute w-full h-[1px] bg-slate-800"></div>
+            <div class="absolute h-full w-[1px] bg-slate-800"></div>
+            <!-- Interactive Dot -->
+            <div id="mood-dot" class="absolute w-5 h-5 rounded-full bg-gradient-to-r from-pink-500 to-violet-500 border-2 border-white shadow-lg shadow-violet-500/80 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-75"></div>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 text-center">Click or drag anywhere in the 2D plane to intuitively steer recommendations.</p>
+        </div>
+
+        <!-- Sliders Controls -->
+        <div class="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Valence Slider -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                <span>Target Valence</span>
+                <span class="text-[10px] text-slate-500 font-normal">(Positivity)</span>
+              </label>
+              <span id="val-valence" class="text-xs font-mono text-purple-400 font-semibold">0.88</span>
+            </div>
+            <input type="range" id="slider-valence" min="0" max="1" step="0.01" value="0.88" 
+              class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none slider-thumb cursor-pointer" oninput="handleSliderChange()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>Dark / Somber (0.0)</span>
+              <span>Uplifting / Joyful (1.0)</span>
+            </div>
+          </div>
+
+          <!-- Energy Slider -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                <span>Target Energy</span>
+                <span class="text-[10px] text-slate-500 font-normal">(Arousal / Pacing)</span>
+              </label>
+              <span id="val-energy" class="text-xs font-mono text-purple-400 font-semibold">0.75</span>
+            </div>
+            <input type="range" id="slider-energy" min="0" max="1" step="0.01" value="0.75" 
+              class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none slider-thumb cursor-pointer" oninput="handleSliderChange()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>Exhausted / Sleepy (0.0)</span>
+              <span>Intense / Electric (1.0)</span>
+            </div>
+          </div>
+
+          <!-- Novelty Slider -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                <span>Novelty Bias</span>
+                <span class="text-[10px] text-slate-500 font-normal">(Serendipity)</span>
+              </label>
+              <span id="val-novelty" class="text-xs font-mono text-purple-400 font-semibold">0.20</span>
+            </div>
+            <input type="range" id="slider-novelty" min="0" max="1" step="0.05" value="0.20" 
+              class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none slider-thumb cursor-pointer" oninput="handleSliderChange()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>Popular Staples</span>
+              <span>Hidden Gems</span>
+            </div>
+          </div>
+
+          <!-- Diversity (MMR) Slider -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                <span>MMR Diversity</span>
+                <span class="text-[10px] text-slate-500 font-normal">(Catalog Variety)</span>
+              </label>
+              <span id="val-diversity" class="text-xs font-mono text-purple-400 font-semibold">0.35</span>
+            </div>
+            <input type="range" id="slider-diversity" min="0" max="1" step="0.05" value="0.35" 
+              class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none slider-thumb cursor-pointer" oninput="handleSliderChange()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>Strict Relevance</span>
+              <span>Eclectic Range</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Detected Emotion Status Strip -->
+      <div id="mood-summary-box" class="mt-6 p-4 rounded-xl bg-violet-950/40 border border-violet-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 rounded-lg bg-violet-600/30 text-violet-300">
+            <i data-lucide="activity" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-bold text-white text-sm" id="summary-dominant">Dominant Emotion: Uplift</div>
+            <div class="text-slate-400 text-xs" id="summary-explanation">Detected desire to transition toward Uplift (Valence: 0.88, Energy: 0.75).</div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4 border-t md:border-t-0 md:border-l border-slate-700 pt-2 md:pt-0 md:pl-4 text-slate-400">
+          <div><span class="font-semibold text-slate-200">Trajectory:</span> <span id="summary-trajectory" class="text-violet-300 font-medium">From Exhaustion -> Uplift</span></div>
+          <div><span class="font-semibold text-slate-200">Latency:</span> <span id="summary-latency" class="text-emerald-400 font-mono">12 ms</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Sections: Movies & Music -->
+    <div class="space-y-8">
+      
+      <!-- Movies Section -->
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-pink-500/20 border border-pink-500/30 flex items-center justify-center text-pink-400">
+              <i data-lucide="film" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold font-heading text-white">Recommended Movies</h2>
+              <p class="text-xs text-slate-400">Scored via Content Mood Matching + TruncatedSVD Collaborative Filtering</p>
+            </div>
+          </div>
+          <span class="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-mono" id="movies-count-badge">6 Picks</span>
+        </div>
+        <div id="movies-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- Music Section -->
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <i data-lucide="headphones" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold font-heading text-white">Recommended Soundtracks & Tracks</h2>
+              <p class="text-xs text-slate-400">Filtered by Spotify Audio Features (Valence, Energy, Tempo) + MMR Diversity</p>
+            </div>
+          </div>
+          <span class="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-mono" id="music-count-badge">6 Tracks</span>
+        </div>
+        <div id="music-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Metrics & Evaluation Modal -->
+  <div id="metrics-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 bg-violet-600/20 rounded-lg text-violet-400">
+            <i data-lucide="activity" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold font-heading text-white">Offline Evaluation & Ranking Metrics</h3>
+            <p class="text-xs text-slate-400">Quantitative validation across standard test scenarios</p>
+          </div>
+        </div>
+        <button onclick="closeMetricsModal()" class="text-slate-400 hover:text-white p-2">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- KPI Metric Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800 text-center">
+          <div class="text-xs text-slate-400 font-medium">NDCG@5</div>
+          <div id="metric-ndcg" class="text-2xl font-bold text-violet-400 mt-1 font-mono">0.942</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Ranking Gain</div>
+        </div>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800 text-center">
+          <div class="text-xs text-slate-400 font-medium">MAP@5</div>
+          <div id="metric-map" class="text-2xl font-bold text-pink-400 mt-1 font-mono">0.880</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Mean Avg Precision</div>
+        </div>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800 text-center">
+          <div class="text-xs text-slate-400 font-medium">Intra-List Diversity</div>
+          <div id="metric-ild" class="text-2xl font-bold text-emerald-400 mt-1 font-mono">0.684</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Genre Dissimilarity</div>
+        </div>
+        <div class="bg-slate-850 p-4 rounded-xl border border-slate-800 text-center">
+          <div class="text-xs text-slate-400 font-medium">Mean Latency</div>
+          <div id="metric-latency" class="text-2xl font-bold text-amber-400 mt-1 font-mono">14 ms</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Sub-50ms Budget</div>
+        </div>
+      </div>
+
+      <!-- Chart: Diversity vs Accuracy Trade-off -->
+      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+        <h4 class="text-sm font-semibold text-slate-200 mb-2 flex items-center justify-between">
+          <span>Maximal Marginal Relevance (MMR) Trade-Off Curve</span>
+          <span class="text-xs font-normal text-slate-400">Diversity vs. Ranking Accuracy</span>
+        </h4>
+        <div class="h-64">
+          <canvas id="tradeoffChart"></canvas>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-2">
+          As diversity penalty weight increases from 0.0 to 1.0, intra-list distance expands, preventing filter bubble clustering while preserving strong NDCG.
+        </p>
+      </div>
+
+      <div class="border-t border-slate-800 pt-4 flex justify-end">
+        <button onclick="closeMetricsModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interview Talking Points Modal -->
+  <div id="interview-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 bg-pink-600/20 rounded-lg text-pink-400">
+            <i data-lucide="award" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold font-heading text-white">Interview Talking Points & Architecture</h3>
+            <p class="text-xs text-slate-400">Key engineering decisions & design principles for Day 13</p>
+          </div>
+        </div>
+        <button onclick="closeInterviewModal()" class="text-slate-400 hover:text-white p-2">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm text-slate-300">
+        <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60">
+          <h4 class="font-bold text-violet-400 text-base mb-1">1. Cold Start Strategy</h4>
+          <p class="text-slate-300 leading-relaxed">
+            Pure collaborative filtering fails when a new user arrives (empty rating vector) or new items are ingested. AuraMatch employs an empirical Bayesian prior:
+            <code class="text-amber-300 bg-slate-900 px-1 py-0.5 rounded text-xs">WR = (v / (v + m)) * R + (m / (v + m)) * C</code>
+            combined with immediate projection of in-session feedback (likes/star ratings) into the latent SVD factor space <code class="text-amber-300 bg-slate-900 px-1 py-0.5 rounded text-xs">u_session = R_session * V^T</code>.
+          </p>
+        </div>
+
+        <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60">
+          <h4 class="font-bold text-pink-400 text-base mb-1">2. Diversity vs. Accuracy & MMR Re-Ranking</h4>
+          <p class="text-slate-300 leading-relaxed">
+            Greedy top-K recommenders suffer from severe redundancy (e.g., 5 superhero movies or 5 tracks by the same artist). We implement Maximal Marginal Relevance (MMR):
+            <br>
+            <code class="text-amber-300 bg-slate-900 px-1 py-0.5 rounded text-xs">MMR = argmax [ λ * Rel(d) - (1 - λ) * max Sim(d, s) ]</code>.
+            By exposing the λ slider, users directly balance tight mood relevance against serendipitous genre exploration.
+          </p>
+        </div>
+
+        <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60">
+          <h4 class="font-bold text-emerald-400 text-base mb-1">3. Offline Evaluation Metrics (NDCG, MAP, ILD)</h4>
+          <p class="text-slate-300 leading-relaxed">
+            Recommendation systems cannot rely on accuracy or RMSE alone because position matters:
+            <br>• <strong>NDCG@K</strong> evaluates whether highly relevant items appear at the very top of the ranking with logarithmic position discounting.
+            <br>• <strong>MAP@K</strong> quantifies precision across rank cutoffs.
+            <br>• <strong>Intra-List Diversity (ILD)</strong> measures the mean pairwise distance between recommended items to mathematically penalize homogeneity.
+          </p>
+        </div>
+
+        <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60">
+          <h4 class="font-bold text-amber-400 text-base mb-1">4. Emotion Extraction & Mood Trajectories</h4>
+          <p class="text-slate-300 leading-relaxed">
+            When a user states: <em>"exhausted but want something uplifting"</em>, a naive sentiment classifier sees "exhausted" (negative/low energy). Our clause segmentation identifies contrastive conjunctions, separating the user's current fatigue from their desired regulatory target (Valence: 0.88, Energy: 0.75).
+          </p>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-800 pt-4 flex justify-end">
+        <button onclick="closeInterviewModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web Audio Synthesizer for instant preview playback -->
+  <script>
+    let audioCtx = null;
+    let currentOscillators = [];
+    let playingTrackId = null;
+
+    function playSyntheticPreview(trackId, valence, energy, tempo) {
+      if (playingTrackId === trackId) {
+        stopAudioPreview();
+        return;
+      }
+      stopAudioPreview();
+      
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!audioCtx) audioCtx = new AudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        playingTrackId = trackId;
+        const btn = document.getElementById(`play-btn-${trackId}`);
+        if (btn) btn.innerHTML = `<i data-lucide="square" class="w-4 h-4 text-pink-400"></i><span>Stop</span>`;
+        lucide.createIcons();
+
+        // Musical scales based on valence: Major if high valence, Minor/Pentatonic if low valence
+        const baseFreq = valence > 0.5 ? 261.63 : 220.0; // C4 vs A3
+        const scale = valence > 0.5 
+          ? [0, 4, 7, 12, 16] // Major arpeggio
+          : [0, 3, 7, 10, 12]; // Minor arpeggio
+
+        const noteInterval = Math.max(0.18, 60.0 / (tempo * (energy > 0.7 ? 2 : 1)));
+        let noteIdx = 0;
+
+        const intervalId = setInterval(() => {
+          if (playingTrackId !== trackId) {
+            clearInterval(intervalId);
+            return;
+          }
+          const semi = scale[noteIdx % scale.length];
+          const freq = baseFreq * Math.pow(2, semi / 12);
+          
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          
+          osc.type = energy > 0.6 ? 'sawtooth' : 'sine';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+          gain.gain.setValueAtTime(0.08 * (energy + 0.3), audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + noteInterval * 1.5);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start();
+          osc.stop(audioCtx.currentTime + noteInterval * 1.5);
+          currentOscillators.push(osc);
+
+          noteIdx++;
+        }, noteInterval * 1000);
+
+        // Auto stop after 12 seconds
+        setTimeout(() => {
+          if (playingTrackId === trackId) stopAudioPreview();
+        }, 12000);
+
+      } catch (e) {
+        console.warn("Audio Context playback error:", e);
+      }
+    }
+
+    function stopAudioPreview() {
+      if (playingTrackId) {
+        const btn = document.getElementById(`play-btn-${playingTrackId}`);
+        if (btn) btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 text-emerald-400"></i><span>Preview</span>`;
+        lucide.createIcons();
+      }
+      currentOscillators.forEach(osc => {
+        try { osc.stop(); } catch(e) {}
+      });
+      currentOscillators = [];
+      playingTrackId = null;
+    }
+  </script>
+
+  <!-- Core Dashboard Application Script -->
+  <script>
+    let currentValence = 0.88;
+    let currentEnergy = 0.75;
+    let currentNovelty = 0.20;
+    let currentDiversity = 0.35;
+    let currentPresets = [];
+    let tradeoffChartInstance = null;
+
+    // Initialize application on load
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      setupAffectiveCanvas();
+      loadPresets();
+      loadMetrics();
+      handleRecommend();
+    });
+
+    // 2D Affective Plane Canvas Setup
+    function setupAffectiveCanvas() {
+      const box = document.getElementById("affective-box");
+      const dot = document.getElementById("mood-dot");
+
+      function updateDot(v, e) {
+        const rect = box.getBoundingClientRect();
+        // X: Valence (0.0 to 1.0) -> left: (v * 100)%
+        // Y: Energy (0.0 to 1.0) -> bottom: (e * 100)% (so top is 100 - e*100)
+        dot.style.left = `${v * 100}%`;
+        dot.style.top = `${(1.0 - e) * 100}%`;
+        document.getElementById("canvas-label").innerText = `V: ${v.toFixed(2)} | E: ${e.toFixed(2)}`;
+      }
+
+      function handleBoxPointer(event) {
+        const rect = box.getBoundingClientRect();
+        const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+        const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+        if (!clientX || !clientY) return;
+
+        let v = (clientX - rect.left) / rect.width;
+        let e = 1.0 - ((clientY - rect.top) / rect.height);
+
+        v = Math.max(0.05, Math.min(0.95, v));
+        e = Math.max(0.05, Math.min(0.95, e));
+
+        currentValence = parseFloat(v.toFixed(2));
+        currentEnergy = parseFloat(e.toFixed(2));
+
+        document.getElementById("slider-valence").value = currentValence;
+        document.getElementById("slider-energy").value = currentEnergy;
+        document.getElementById("val-valence").innerText = currentValence.toFixed(2);
+        document.getElementById("val-energy").innerText = currentEnergy.toFixed(2);
+
+        updateDot(currentValence, currentEnergy);
+        debounceRecommend();
+      }
+
+      let isDragging = false;
+      box.addEventListener("mousedown", (e) => { isDragging = true; handleBoxPointer(e); });
+      window.addEventListener("mousemove", (e) => { if (isDragging) handleBoxPointer(e); });
+      window.addEventListener("mouseup", () => { isDragging = false; });
+      box.addEventListener("touchstart", (e) => { isDragging = true; handleBoxPointer(e); }, { passive: true });
+      window.addEventListener("touchmove", (e) => { if (isDragging) handleBoxPointer(e); }, { passive: true });
+      window.addEventListener("touchend", () => { isDragging = false; });
+
+      // Initial placement
+      updateDot(currentValence, currentEnergy);
+    }
+
+    function handleSliderChange() {
+      currentValence = parseFloat(document.getElementById("slider-valence").value);
+      currentEnergy = parseFloat(document.getElementById("slider-energy").value);
+      currentNovelty = parseFloat(document.getElementById("slider-novelty").value);
+      currentDiversity = parseFloat(document.getElementById("slider-diversity").value);
+
+      document.getElementById("val-valence").innerText = currentValence.toFixed(2);
+      document.getElementById("val-energy").innerText = currentEnergy.toFixed(2);
+      document.getElementById("val-novelty").innerText = currentNovelty.toFixed(2);
+      document.getElementById("val-diversity").innerText = currentDiversity.toFixed(2);
+
+      const dot = document.getElementById("mood-dot");
+      dot.style.left = `${currentValence * 100}%`;
+      dot.style.top = `${(1.0 - currentEnergy) * 100}%`;
+      document.getElementById("canvas-label").innerText = `V: ${currentValence.toFixed(2)} | E: ${currentEnergy.toFixed(2)}`;
+
+      debounceRecommend();
+    }
+
+    let debounceTimer = null;
+    function debounceRecommend() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        handleRecommend(true);
+      }, 250);
+    }
+
+    async function loadPresets() {
+      try {
+        const res = await fetch("/api/presets");
+        const data = await res.json();
+        currentPresets = data.presets || [];
+        const container = document.getElementById("presets-container");
+        container.innerHTML = "";
+
+        currentPresets.forEach((p, idx) => {
+          const pill = document.createElement("button");
+          pill.className = "text-xs px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-700/80 hover:border-violet-500 hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center space-x-1.5 shadow-sm";
+          pill.innerHTML = `<i data-lucide="${p.icon || 'sparkles'}" class="w-3.5 h-3.5 text-violet-400"></i><span>${p.title}</span>`;
+          pill.onclick = () => selectPreset(idx);
+          container.appendChild(pill);
+        });
+        lucide.createIcons();
+      } catch (e) {
+        console.error("Failed to load presets", e);
+      }
+    }
+
+    function selectPreset(idx) {
+      const p = currentPresets[idx];
+      if (!p) return;
+      document.getElementById("mood-input").value = p.text;
+      currentValence = p.valence;
+      currentEnergy = p.energy;
+      document.getElementById("slider-valence").value = currentValence;
+      document.getElementById("slider-energy").value = currentEnergy;
+      document.getElementById("val-valence").innerText = currentValence.toFixed(2);
+      document.getElementById("val-energy").innerText = currentEnergy.toFixed(2);
+      
+      const dot = document.getElementById("mood-dot");
+      dot.style.left = `${currentValence * 100}%`;
+      dot.style.top = `${(1.0 - currentEnergy) * 100}%`;
+      document.getElementById("canvas-label").innerText = `V: ${currentValence.toFixed(2)} | E: ${currentEnergy.toFixed(2)}`;
+
+      handleRecommend();
+    }
+
+    async function handleRecommend(useSliderOverrides = false) {
+      stopAudioPreview();
+      const moodText = document.getElementById("mood-input").value.trim();
+      const btn = document.getElementById("btn-recommend");
+      btn.classList.add("opacity-75");
+
+      const payload = {
+        mood_text: moodText || "uplifting positive vibes",
+        valence_override: useSliderOverrides ? currentValence : null,
+        energy_override: useSliderOverrides ? currentEnergy : null,
+        novelty_weight: currentNovelty,
+        diversity_weight: currentDiversity,
+        top_k: 6
+      };
+
+      try {
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        // Update mood summary strip
+        const ma = data.mood_analysis;
+        document.getElementById("summary-dominant").innerText = `Dominant Emotion: ${ma.dominant_emotion}`;
+        document.getElementById("summary-explanation").innerText = ma.explanation;
+        document.getElementById("summary-trajectory").innerText = ma.trajectory;
+        document.getElementById("summary-latency").innerText = `${data.meta.latency_ms} ms`;
+
+        // Update slider values to parsed values if not using manual overrides
+        if (!useSliderOverrides) {
+          currentValence = ma.valence;
+          currentEnergy = ma.energy;
+          document.getElementById("slider-valence").value = currentValence;
+          document.getElementById("slider-energy").value = currentEnergy;
+          document.getElementById("val-valence").innerText = currentValence.toFixed(2);
+          document.getElementById("val-energy").innerText = currentEnergy.toFixed(2);
+
+          const dot = document.getElementById("mood-dot");
+          dot.style.left = `${currentValence * 100}%`;
+          dot.style.top = `${(1.0 - currentEnergy) * 100}%`;
+          document.getElementById("canvas-label").innerText = `V: ${currentValence.toFixed(2)} | E: ${currentEnergy.toFixed(2)}`;
+        }
+
+        renderMovies(data.recommendations.movies || []);
+        renderMusic(data.recommendations.music || []);
+
+      } catch (err) {
+        console.error("Recommendation error:", err);
+      } finally {
+        btn.classList.remove("opacity-75");
+      }
+    }
+
+    function renderMovies(movies) {
+      const container = document.getElementById("movies-grid");
+      container.innerHTML = "";
+      document.getElementById("movies-count-badge").innerText = `${movies.length} Picks`;
+
+      movies.forEach(m => {
+        const card = document.createElement("div");
+        card.className = "glass-card rounded-2xl overflow-hidden border border-slate-800 hover:border-violet-500/50 transition-all duration-300 shadow-xl flex flex-col group";
+
+        const genreBadges = m.genres.map(g => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700/60">${g}</span>`).join(" ");
+        const userRating = m.user_rating || 0;
+
+        card.innerHTML = `
+          <div class="relative h-48 overflow-hidden bg-slate-900">
+            <img src="${m.poster_url}" alt="${m.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500 opacity-90">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+            <div class="absolute top-3 right-3 flex items-center space-x-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-amber-500/40 text-amber-300 text-xs font-bold">
+              <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 text-amber-400"></i>
+              <span>${m.vote_average.toFixed(1)}</span>
+            </div>
+            <div class="absolute bottom-3 left-4 right-4">
+              <span class="text-[11px] text-violet-300 font-semibold uppercase tracking-wider">${m.release_year} · Dir. ${m.director}</span>
+              <h3 class="text-lg font-bold text-white font-heading truncate leading-snug">${m.title}</h3>
+            </div>
+          </div>
+
+          <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex flex-wrap gap-1 mb-3">${genreBadges}</div>
+              <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed">${m.overview}</p>
+            </div>
+
+            <!-- Explainability Badge -->
+            <div class="bg-violet-950/40 border border-violet-800/30 p-2.5 rounded-xl flex items-start space-x-2">
+              <i data-lucide="lightbulb" class="w-4 h-4 text-amber-300 shrink-0 mt-0.5"></i>
+              <p class="text-[11px] text-violet-200 leading-tight">${m.explanation}</p>
+            </div>
+
+            <!-- Matching Signals & Active Learning Rating -->
+            <div class="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-2">
+                <span class="text-[10px] text-slate-400">Fit:</span>
+                <span class="font-mono text-xs font-bold text-emerald-400">${Math.round(m.content_score * 100)}%</span>
+                <span class="text-[10px] text-slate-500">| SVD CF:</span>
+                <span class="font-mono text-xs font-semibold text-purple-300">${m.cf_rating}★</span>
+              </div>
+              <div class="flex items-center space-x-1" id="star-rating-${m.movie_id}">
+                ${[1, 2, 3, 4, 5].map(star => `
+                  <button onclick="handleMovieRating(${m.movie_id}, ${star})" title="Rate ${star} stars" class="p-0.5 text-slate-600 hover:text-amber-400 transition">
+                    <i data-lucide="star" class="w-3.5 h-3.5 ${star <= userRating ? 'fill-amber-400 text-amber-400' : ''}"></i>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    function renderMusic(tracks) {
+      const container = document.getElementById("music-grid");
+      container.innerHTML = "";
+      document.getElementById("music-count-badge").innerText = `${tracks.length} Tracks`;
+
+      tracks.forEach(t => {
+        const card = document.createElement("div");
+        card.className = "glass-card rounded-2xl p-5 border border-slate-800 hover:border-emerald-500/50 transition-all duration-300 shadow-xl flex flex-col justify-between space-y-4 group";
+
+        const liked = t.liked === 1;
+        const disliked = t.liked === -1;
+
+        card.innerHTML = `
+          <div class="flex items-start space-x-3.5">
+            <div class="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-800 shrink-0 shadow-md">
+              <img src="${t.cover_art}" alt="${t.track_name}" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-black/20"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-full">${t.track_genre}</span>
+                <span class="text-[11px] font-mono text-slate-400">${t.tempo} BPM</span>
+              </div>
+              <h3 class="text-base font-bold text-white font-heading truncate mt-1">${t.track_name}</h3>
+              <p class="text-xs text-slate-400 truncate">${t.artists} · <span class="text-slate-500">${t.album_name}</span></p>
+            </div>
+          </div>
+
+          <!-- Audio Feature Bars -->
+          <div class="space-y-1.5 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/70 text-[10px]">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400">Valence (Positivity)</span>
+              <div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-pink-500 rounded-full" style="width: ${Math.round(t.valence * 100)}%"></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400">Energy (Intensity)</span>
+              <div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-amber-400 rounded-full" style="width: ${Math.round(t.energy * 100)}%"></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400">Danceability</span>
+              <div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-violet-400 rounded-full" style="width: ${Math.round(t.danceability * 100)}%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Explainability Note -->
+          <div class="bg-emerald-950/30 border border-emerald-800/30 p-2.5 rounded-xl flex items-start space-x-2">
+            <i data-lucide="music-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+            <p class="text-[11px] text-emerald-200 leading-tight">${t.explanation}</p>
+          </div>
+
+          <!-- Player & Feedback Controls -->
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <button 
+              id="play-btn-${t.track_id}"
+              onclick="playSyntheticPreview('${t.track_id}', ${t.valence}, ${t.energy}, ${t.tempo})"
+              class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold transition">
+              <i data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
+              <span>Preview</span>
+            </button>
+
+            <div class="flex items-center space-x-2">
+              <button onclick="handleMusicFeedback('${t.track_id}', 'like')" class="p-1.5 rounded-lg ${liked ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800'} transition">
+                <i data-lucide="thumbs-up" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="handleMusicFeedback('${t.track_id}', 'dislike')" class="p-1.5 rounded-lg ${disliked ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white bg-slate-800'} transition">
+                <i data-lucide="thumbs-down" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    async function handleMovieRating(movieId, rating) {
+      try {
+        await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_type: "movie", item_id: String(movieId), rating: rating })
+        });
+        handleRecommend(true);
+      } catch (e) {
+        console.error("Feedback error", e);
+      }
+    }
+
+    async function handleMusicFeedback(trackId, action) {
+      try {
+        await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_type: "music", item_id: trackId, action: action })
+        });
+        handleRecommend(true);
+      } catch (e) {
+        console.error("Music feedback error", e);
+      }
+    }
+
+    async function loadMetrics() {
+      try {
+        const res = await fetch("/api/metrics");
+        const data = await res.json();
+        document.getElementById("metric-ndcg").innerText = data.mean_ndcg_at_5;
+        document.getElementById("metric-map").innerText = data.mean_map_at_5;
+        document.getElementById("metric-ild").innerText = data.mean_movie_diversity;
+
+        // Render Chart
+        renderTradeoffChart(data.diversity_vs_accuracy_tradeoff || []);
+      } catch (e) {
+        console.error("Failed to load metrics", e);
+      }
+    }
+
+    function renderTradeoffChart(curveData) {
+      const ctx = document.getElementById("tradeoffChart").getContext("2d");
+      if (tradeoffChartInstance) tradeoffChartInstance.destroy();
+
+      const labels = curveData.map(d => `λ = ${d.diversity_weight}`);
+      const ndcgVals = curveData.map(d => d.ndcg_at_5);
+      const ildVals = curveData.map(d => d.intra_list_diversity);
+
+      tradeoffChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'NDCG@5 (Ranking Quality)',
+              data: ndcgVals,
+              borderColor: '#a855f7',
+              backgroundColor: 'rgba(168, 85, 247, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Intra-List Diversity (ILD)',
+              data: ildVals,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              min: 0.4,
+              max: 1.0,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#94a3b8' }
+            },
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#94a3b8' }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#e2e8f0', font: { family: 'Plus Jakarta Sans' } }
+            }
+          }
+        }
+      });
+    }
+
+    function openMetricsModal() {
+      document.getElementById("metrics-modal").classList.remove("hidden");
+    }
+    function closeMetricsModal() {
+      document.getElementById("metrics-modal").classList.add("hidden");
+    }
+    function openInterviewModal() {
+      document.getElementById("interview-modal").classList.remove("hidden");
+    }
+    function closeInterviewModal() {
+      document.getElementById("interview-modal").classList.add("hidden");
+    }
+  </script>
+</body>
+</html>
