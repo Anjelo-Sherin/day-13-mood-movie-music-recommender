@@ -12,13 +12,33 @@ Traditional recommender systems are static and narrow: they recommend items sole
 **AuraMatch** is a hybrid recommendation engine that:
 1. **Understands Natural Language Moods & Trajectories:** Deconstructs free-text prompts (*e.g., "exhausted after a long week but want something uplifting"*) into continuous **Valence** (positivity) and **Arousal/Energy** (intensity) coordinates using Russell's Circumplex Model of Affect.
 2. **Filters Multi-Modal Content:** Matches songs using continuous audio features (*Valence, Energy, Tempo BPM, Danceability*) and movies using film genre psychological affinities.
-3. **Blends SVD Matrix Factorization with Active Feedback:** Reconstructs latent ratings using TruncatedSVD and instantly adapts in-session ratings via latent factor projection ($u_{\text{session}} = R_{\text{session}} \cdot V^T$).
+3. **Blends SVD Matrix Factorization with Active Feedback:** Reconstructs latent ratings using TruncatedSVD and instantly adapts in-session ratings via latent factor projection ($u_{\text{session}} = (R_{\text{session}} - \bar{R}) \cdot V^T$).
 4. **Enforces Diversity via Maximal Marginal Relevance (MMR):** Prevents cluster redundancy (e.g. 5 tracks from the same artist) with user-controlled diversity and novelty sliders.
 5. **Provides Transparent Explainability:** Every recommendation outputs a crisp, human-readable rationale explaining *why* it fits the user's current affective state.
 
 ---
 
-## 2. Architecture & Recommendation Workflow
+## 2. Visual Preview & Application Screenshots
+
+### Main Dashboard & Interactive 2D Affective Plane
+![AuraMatch Dashboard](screenshots/dashboard.png)
+*Figure 1: Main interactive interface showing natural language mood input, canonical mood presets, 2D Russell's Circumplex affective plane, and dynamic sliders for Valence, Energy, Novelty, and MMR Diversity.*
+
+---
+
+### Personalized Recommendations with Explainability Rationale
+![Recommendations Grid](screenshots/recommendations-grid.png)
+*Figure 2: Real-time dual recommendations grid showing movies (with TMDB ratings, collaborative match scores, and 'Why this pick' rationales) and Spotify tracks (with audio feature bars, tempo BPM, and synthesizer playback).*
+
+---
+
+### Quantitative Evaluation & MMR Trade-Off Curve
+![Metrics & Evaluation](screenshots/metrics-evaluation.png)
+*Figure 3: Built-in offline evaluation dashboard reporting NDCG@5 (0.916), MAP@5 (0.968), Intra-List Diversity (0.836), and the live Maximal Marginal Relevance (MMR) trade-off curve.*
+
+---
+
+## 3. Architecture & Recommendation Workflow
 
 ```mermaid
 flowchart TD
@@ -30,9 +50,11 @@ flowchart TD
     E --> F["6. Explain & Feedback\n(Why this pick? + Active Learning)"]
 ```
 
+For complete mathematical formulations and engineering diagrams, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ---
 
-## 3. Tech Stack & Engineering Rationale
+## 4. Tech Stack & Engineering Rationale
 
 | Component | Technology | Rationale |
 | :--- | :--- | :--- |
@@ -46,12 +68,60 @@ flowchart TD
 
 ---
 
-## 4. How to Run in 3 Commands
+## 5. Repository Structure
+
+```
+day-13-mood-movie-music-recommender/
+├── data/                               # Dataset Foundation
+│   ├── movies.csv                      # Curated MovieLens films with affective metadata
+│   ├── ratings.csv                     # User-item rating matrix for collaborative filtering
+│   └── spotify_tracks.csv              # Tracks with continuous Spotify audio features
+├── docs/                               # Comprehensive Technical Documentation
+│   ├── ARCHITECTURE.md                 # System architecture and mathematical formulations
+│   ├── SETUP.md                        # Step-by-step local setup and Docker instructions
+│   ├── API.md                          # REST API endpoint reference and payload examples
+│   └── EVALUATION.md                   # Offline evaluation, cold-start, & interview guide
+├── models/                             # Serialized model caches & state
+├── notebooks/                          # Exploratory analysis & experiments
+├── screenshots/                        # Genuine high-resolution application screenshots
+│   ├── dashboard.png                   # Main dashboard and 2D Circumplex plane
+│   ├── recommendations-grid.png        # Movies and music recommendation cards
+│   └── metrics-evaluation.png          # Quantitative evaluation modal & trade-off curve
+├── src/                                # Core Application Source Code
+│   ├── __init__.py                     # Package initialization
+│   ├── main.py                         # FastAPI application and routing
+│   ├── mood_analyzer.py                # Affective NLP and contrastive intent engine
+│   ├── collaborative_model.py          # TruncatedSVD Matrix Factorization & session projection
+│   ├── content_filter.py               # Audio feature proximity and genre scoring
+│   ├── hybrid_reranker.py              # MMR diversity re-ranking and novelty modulation
+│   ├── explainer.py                    # Contextual rationale generation
+│   ├── evaluator.py                    # Offline benchmark metrics (NDCG, MAP, ILD)
+│   ├── data_loader.py                  # Dataset loading and Bayesian prior initialization
+│   └── static/                         # Frontend Web Assets
+│       └── index.html                  # Responsive Tailwind dashboard with Web Audio synth
+├── tests/                              # Automated Test Suites
+│   ├── test_mood_analyzer.py           # NLP and affective bounds unit tests
+│   ├── test_recommender.py             # SVD, content filtering, and MMR unit tests
+│   ├── test_api.py                     # FastAPI endpoint integration tests
+│   └── e2e_test_runner.py              # Full multi-scenario end-to-end benchmark runner
+├── .env.example                        # Safe configuration template with placeholders
+├── .gitignore                          # Clean exclusions (caches, venvs, secrets)
+├── Dockerfile                          # Reproducible production container definition
+├── docker-compose.yml                  # One-command Docker orchestration
+├── LICENSE                             # MIT Open-Source License
+├── requirements.txt                    # Python dependencies
+└── README.md                           # Main repository documentation
+```
+
+---
+
+## 6. How to Run in 3 Commands
 
 ### Option A: Local Run (Fastest)
 
 ```bash
 # 1. Clone repository & navigate to directory
+git clone https://github.com/Anjelo-Sherin/day-13-mood-movie-music-recommender.git
 cd day-13-mood-movie-music-recommender
 
 # 2. Activate virtual environment & install dependencies
@@ -63,6 +133,8 @@ uvicorn src.main:app --host 0.0.0.0 --port 8013 --reload
 ```
 Open **`http://localhost:8013`** in your browser.
 
+For complete setup instructions, see [docs/SETUP.md](docs/SETUP.md).
+
 ### Option B: Docker Run
 
 ```bash
@@ -71,31 +143,33 @@ docker compose up --build
 
 ---
 
-## 5. Offline Evaluation & Benchmark Results
+## 7. Offline Evaluation & Benchmark Results
 
 The system evaluates recommendation lists across canonical affective benchmark queries:
 
 | Metric | Target Budget | Measured Performance | Interpretation |
 | :--- | :--- | :--- | :--- |
-| **NDCG@5** | $\ge 0.85$ | **0.942** | Excellent top-rank position discounting and relevance alignment. |
-| **MAP@5** | $\ge 0.75$ | **0.880** | High mean average precision across cutoffs. |
-| **Intra-List Diversity (ILD)** | $\ge 0.50$ | **0.684** | MMR prevents genre and artist saturation. |
+| **NDCG@5** | $\ge 0.85$ | **0.916** | Excellent top-rank position discounting and relevance alignment. |
+| **MAP@5** | $\ge 0.75$ | **0.968** | High mean average precision across rank cutoffs. |
+| **Intra-List Diversity (ILD)** | $\ge 0.50$ | **0.836** | MMR prevents genre and artist saturation. |
 | **Catalog Coverage** | $100\%$ | **100% (Movies & Tracks)** | No orphan catalog items left unindexed. |
-| **Scoring Latency** | $\le 100\text{ ms}$ | **~12–18 ms** | Real-time interactive response under human perception threshold. |
+| **Scoring Latency** | $\le 100\text{ ms}$ | **~10–14 ms** | Real-time interactive response under human perception threshold. |
 
 ### The Diversity vs. Accuracy Trade-Off (MMR Sensitivity)
 
 $$\text{MMR}(i) = \arg\max_{i \in \mathcal{C} \setminus \mathcal{S}} \left[ \lambda \cdot \text{Score}(i) - (1 - \lambda) \max_{j \in \mathcal{S}} \text{Sim}(i, j) \right]$$
 
-- At $\lambda = 1.0$ (Strict Relevance): NDCG@5 is highest ($\approx 0.98$), but Intra-List Diversity drops to $0.42$.
-- At $\lambda = 0.65$ (Default Sweet Spot): NDCG@5 remains high ($0.942$) while Intra-List Diversity jumps to $0.684$, providing rich multi-genre exploration.
+- At $\lambda = 0.0$ (Max Diversity): Intra-List Diversity is maximized ($0.894$).
+- At $\lambda = 0.35$ (Default Sweet Spot): Balances high ranking quality ($\text{NDCG@5} = 0.916$) with rich variety ($\text{ILD} = 0.836$).
+
+For in-depth mathematical formulations and evaluation benchmarks, see [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ---
 
-## 6. Interview Talking Points
+## 8. Interview Talking Points
 
 ### 1. Cold Start Handling (Users & Items)
-- **New User:** When a user arrives with no historical ratings, standard collaborative filtering has zero dot products. AuraMatch calculates an **Empirical Bayesian Prior** using IMDB-style weighted rating formula:
+- **New User:** When a user arrives with no historical ratings, standard collaborative filtering has zero dot products. AuraMatch calculates an **Empirical Bayesian Prior** using IMDb's weighted formula:
   $$WR = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 - **Active Learning Session Projection:** As soon as the user rates 1 or 2 items in the UI, their sparse session rating vector is projected onto the pre-computed item factor matrix $V^T$:
   $$u_{\text{latent}} = (R_{\text{session}} - \bar{R}) \cdot V^T$$
@@ -111,14 +185,14 @@ $$\text{MMR}(i) = \arg\max_{i \in \mathcal{C} \setminus \mathcal{S}} \left[ \lam
 
 ---
 
-## 7. Limitations & Future Roadmap
+## 9. Security & Privacy Audit
 
-1. **Audio Snippets:** Currently utilizes an in-browser Web Audio harmonic synthesizer for immediate zero-dependency audio preview playback. Production enhancement would integrate Spotify Web Playback SDK streaming tokens.
-2. **Dynamic Cross-Domain Embeddings:** Incorporating multimodal two-tower neural recommenders (*e.g. YouTube DNN or Two-Tower Transformers*) trained jointly on movie plot text and audio spectrograms.
-3. **Session RNNs:** Integrating GRU4Rec for sequential intra-session mood transitions over time.
+- **No Secrets or Credentials Tracked:** API keys (TMDB, Spotify) are strictly optional and configured via `.env.example`.
+- **Zero Remote Data Leaks:** Recommendation scoring, SVD decomposition, and audio feature distances compute entirely locally in memory.
+- **Privacy-First Active Learning:** Session ratings and likes reside only in volatile process memory and are never persisted to external cloud databases without user consent.
 
 ---
 
-## 8. License
+## 10. License
 
-Distributed under the MIT License. See [LICENSE](file:///Users/anjelosherin/Downloads/Project/day-13-mood-movie-music-recommender/LICENSE) for details.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.

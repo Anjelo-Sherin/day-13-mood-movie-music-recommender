@@ -488,6 +488,9 @@
       loadPresets();
       loadMetrics();
       handleRecommend();
+      if (window.location.hash === '#metrics') {
+        setTimeout(openMetricsModal, 600);
+      }
     });
 
     // 2D Affective Plane Canvas Setup
